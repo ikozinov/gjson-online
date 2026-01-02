@@ -121,14 +121,40 @@ func main() {
 
 	app.RunWhenOnBrowser()
 
-	http.Handle("/", &app.Handler{
+	// Define the handler with the required configuration
+	handler := &app.Handler{
 		Name:        "GJSON Playground",
 		Description: "Online playground for testing GJSON expressions",
 		Styles: []string{
 			"https://cdn.jsdelivr.net/npm/halfmoon@1.1.1/css/halfmoon.min.css",
 		},
 		Title: "GJSON Online",
-	})
+		Icon: app.Icon{
+			Default:    "/web/icon.svg", // Use the custom icon
+			AppleTouch: "/web/icon.svg", // Use it for Apple Touch too
+		},
+		RawHeaders: []string{
+			`<script>
+				window.addEventListener('error', function(event) {
+					console.error("Global error caught:", event.error);
+					// You can also display a UI alert here if needed
+				});
+				window.addEventListener('unhandledrejection', function(event) {
+					console.error("Unhandled promise rejection:", event.reason);
+				});
+			</script>`,
+		},
+	}
+
+	// Check if the "gen" argument is provided to generate the static site
+	if len(os.Args) > 1 && os.Args[1] == "gen" {
+		if err := app.GenerateStaticWebsite("web", handler); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
+
+	http.Handle("/", handler)
 
 	port := os.Getenv("PORT")
 	if port == "" {

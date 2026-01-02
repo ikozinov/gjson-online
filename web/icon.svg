@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none" stroke="#2d2c2c" stroke-width="8" stroke-linecap="round">
+  <path d="M35 25 Q 15 25 15 45 V 48 Q 15 53 5 53 M 15 53 Q 15 58 15 78 M 15 53 L 25 53" />
+  <path d="M65 25 Q 85 25 85 45 V 48 Q 85 53 95 53 M 85 53 Q 85 58 85 78 M 85 53 L 75 53" />
+  <text x="50" y="65" text-anchor="middle" font-family="monospace" font-size="30" fill="#2d2c2c" stroke="none">G</text>
+</svg>
