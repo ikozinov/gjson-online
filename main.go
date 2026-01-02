@@ -3,7 +3,11 @@ package main
 import (
 	"log"
 	"net/http"
+	"fmt"
+	"io/ioutil"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/maxence-charriere/go-app/v9/pkg/app"
 	"github.com/tidwall/gjson"
@@ -148,7 +152,10 @@ func main() {
 
 	// Check if the "gen" argument is provided to generate the static site
 	if len(os.Args) > 1 && os.Args[1] == "gen" {
-		if err := app.GenerateStaticWebsite("web", handler); err != nil {
+		if err := app.GenerateStaticWebsite("dist", handler); err != nil {
+			log.Fatal(err)
+		}
+		if err := fixPaths(); err != nil {
 			log.Fatal(err)
 		}
 		return
@@ -165,4 +172,40 @@ func main() {
 	if err := http.ListenAndServe(":"+port, nil); err != nil {
 		log.Fatal(err)
 	}
+}
+
+func fixPaths() error {
+	// Create dist/web directory
+	webDir := filepath.Join("dist", "web")
+	if err := os.MkdirAll(webDir, 0755); err != nil {
+		return fmt.Errorf("failed to create dist/web: %w", err)
+	}
+
+	// Move icon.svg to dist/web/icon.svg if it exists in dist
+	iconSrc := filepath.Join("dist", "icon.svg")
+	iconDst := filepath.Join(webDir, "icon.svg")
+	if _, err := os.Stat(iconSrc); err == nil {
+		if err := os.Rename(iconSrc, iconDst); err != nil {
+			return fmt.Errorf("failed to move icon.svg: %w", err)
+		}
+	}
+
+	// Update app.js to point to /web/app.wasm
+	appJSPath := filepath.Join("dist", "app.js")
+	if _, err := os.Stat(appJSPath); err == nil {
+		content, err := ioutil.ReadFile(appJSPath)
+		if err != nil {
+			return fmt.Errorf("failed to read app.js: %w", err)
+		}
+		newContent := strings.Replace(string(content), `"/app.wasm"`, `"/web/app.wasm"`, -1)
+		// go-app sometimes uses a variable or different structure, but usually it's fetch("/app.wasm")
+		// The provided web/app.js showed fetchWithProgress("/web/app.wasm", ...)
+		// If the generated one has "/app.wasm", we replace it.
+
+		if err := ioutil.WriteFile(appJSPath, []byte(newContent), 0644); err != nil {
+			return fmt.Errorf("failed to write app.js: %w", err)
+		}
+	}
+
+	return nil
 }

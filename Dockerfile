@@ -14,8 +14,11 @@ RUN go mod download
 COPY . .
 
 # Build the WebAssembly binary
-RUN mkdir -p web
-RUN GOOS=js GOARCH=wasm go build -o web/app.wasm
+RUN mkdir -p dist/web
+RUN GOOS=js GOARCH=wasm go build -o dist/web/app.wasm
+
+# Build the static site
+RUN go run main.go gen
 
 # Build the server binary
 RUN go build -o server
