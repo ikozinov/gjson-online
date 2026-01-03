@@ -8,7 +8,9 @@ import (
 	"io"
 	"path/filepath"
 
-	"github.com/maxence-charriere/go-app/v9/pkg/app"
+	"runtime"
+
+	"github.com/maxence-charriere/go-app/v10/pkg/app"
 	"github.com/tidwall/gjson"
 )
 
@@ -20,8 +22,13 @@ type GJSONPlayground struct {
 	Result      string
 }
 
+func (p *GJSONPlayground) OnNav(ctx app.Context) {
+	app.Log("GJSONPlayground navigation")
+}
+
 // OnMount initializes the component with default data.
 func (p *GJSONPlayground) OnMount(ctx app.Context) {
+	app.Log("GJSONPlayground mounted")
 	// Example JSON taken from GJSON README or similar common examples
 	p.JSONContent = `{
   "name": {"first": "Tom", "last": "Anderson"},
@@ -39,12 +46,13 @@ func (p *GJSONPlayground) OnMount(ctx app.Context) {
 }
 
 func (p *GJSONPlayground) updateResult() {
+	app.Log("Updating result for query:", p.Query)
 	if p.Query == "" {
 		p.Result = ""
-		return
+	} else {
+		res := gjson.Get(p.JSONContent, p.Query)
+		p.Result = res.String()
 	}
-	res := gjson.Get(p.JSONContent, p.Query)
-	p.Result = res.String()
 }
 
 // OnJSONChange handles changes in the JSON input textarea.
@@ -98,7 +106,8 @@ func (p *GJSONPlayground) Render() app.UI {
 							app.Textarea().Class("form-control").ID("json-area").
 								Style("height", "70vh").
 								Style("font-family", "monospace").
-								Text(p.JSONContent).
+								// Value(p.JSONContent) was undefined
+								Body(app.Text(p.JSONContent)).
 								OnInput(p.OnJSONChange),
 						),
 					),
@@ -122,7 +131,9 @@ func (p *GJSONPlayground) Render() app.UI {
 const assetsDir = "web"
 
 func main() {
-	app.Route("/", &GJSONPlayground{})
+	app.Route("/", func() app.Composer {
+		return &GJSONPlayground{}
+	})
 
 	app.RunWhenOnBrowser()
 
@@ -135,19 +146,8 @@ func main() {
 		},
 		Title: "GJSON Online",
 		Icon: app.Icon{
-			Default:    "/" + assetsDir + "/icon.svg", // Use the custom icon
-			AppleTouch: "/" + assetsDir + "/icon.svg", // Use it for Apple Touch too
-		},
-		RawHeaders: []string{
-			`<script>
-				window.addEventListener('error', function(event) {
-					console.error("Global error caught:", event.error);
-					// You can also display a UI alert here if needed
-				});
-				window.addEventListener('unhandledrejection', function(event) {
-					console.error("Unhandled promise rejection:", event.reason);
-				});
-			</script>`,
+			Default: "/" + assetsDir + "/icon.svg", // Use the custom icon
+			SVG:     "/" + assetsDir + "/icon.svg", // Use the custom icon
 		},
 	}
 
@@ -159,7 +159,7 @@ func main() {
 		if err := copyAssetsToDist(assetsDir); err != nil {
 			log.Fatal(err)
 		}
-		if err := fixWasmBundle(assetsDir); err != nil {
+		if err := updateWasmExec(); err != nil {
 			log.Fatal(err)
 		}
 		return
@@ -220,15 +220,46 @@ func copyAssetsToDist(assetsDir string) error {
 	})
 }
 
-// fixWasmBundle moves dist/app.wasm to dist/web/app.wasm
-func fixWasmBundle(assetsDir string) error {
-	src := filepath.Join("dist", "app.wasm")
-	dst := filepath.Join("dist", assetsDir, "app.wasm")
+// updateWasmExec copies the wasm_exec.js file from GOROOT to dist/wasm_exec.js
+// ensuring the JS glue code matches the Go version used to build the WASM binary.
+func updateWasmExec() error {
+	goroot := runtime.GOROOT()
 
-	// Check if source exists before moving
-	if _, err := os.Stat(src); os.IsNotExist(err) {
-		return nil // Or handle as error if expected to exist
+	// Check possible locations for wasm_exec.js
+	// Go 1.24+ moved it to lib/wasm, older versions had it in misc/wasm
+	locations := []string{
+		filepath.Join(goroot, "lib", "wasm", "wasm_exec.js"),
+		filepath.Join(goroot, "misc", "wasm", "wasm_exec.js"),
 	}
 
-	return os.Rename(src, dst)
+	var src string
+	for _, loc := range locations {
+		if _, err := os.Stat(loc); err == nil {
+			src = loc
+			break
+		}
+	}
+
+	if src == "" {
+		return os.ErrNotExist
+	}
+
+	dst := filepath.Join("dist", "wasm_exec.js")
+
+	log.Printf("Updating wasm_exec.js from %s to %s", src, dst)
+
+	srcFile, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer srcFile.Close()
+
+	dstFile, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+	if err != nil {
+		return err
+	}
+	defer dstFile.Close()
+
+	_, err = io.Copy(dstFile, srcFile)
+	return err
 }

@@ -2,11 +2,20 @@
 // go-app
 // -----------------------------------------------------------------------------
 var goappNav = function () {};
-var goappOnUpdate = function () {};
-var goappOnAppInstallChange = function () {};
 
-const goappEnv = {"GOAPP_INTERNAL_URLS":"null","GOAPP_ROOT_PREFIX":"","GOAPP_STATIC_RESOURCES_URL":"","GOAPP_VERSION":"35ee8baaef6a4b6caf916d74bf1aba5486caff1a"};
+var goappUpdatedBeforeWasmLoaded = false;
+var goappOnUpdate = function () {
+  goappUpdatedBeforeWasmLoaded = true;
+};
+
+var goappAppInstallChangedBeforeWasmLoaded = false;
+var goappOnAppInstallChange = function () {
+  goappAppInstallChangedBeforeWasmLoaded = true;
+};
+
+const goappEnv = {"GOAPP_INTERNAL_URLS":"null","GOAPP_ROOT_PREFIX":"/","GOAPP_STATIC_RESOURCES_URL":"/web","GOAPP_VERSION":"bcb5ef5f7c1d53814d5cb105289f8072c62f5de5"};
 const goappLoadingLabel = "{progress}%";
+const goappWasmContentLength = "";
 const goappWasmContentLengthHeader = "";
 
 let goappServiceWorkerRegistration;
@@ -26,13 +35,11 @@ async function goappInitServiceWorker() {
       const registration = await navigator.serviceWorker.register(
         "/app-worker.js"
       );
-
       goappServiceWorkerRegistration = registration;
       goappSetupNotifyUpdate(registration);
-      goappSetupAutoUpdate(registration);
       goappSetupPushNotification();
     } catch (err) {
-      console.error("goapp service worker registration failed", err);
+      console.error("goapp service worker registration failed: ", err);
     }
   }
 }
@@ -55,23 +62,20 @@ function goappSetupNotifyUpdate(registration) {
       if (!navigator.serviceWorker.controller) {
         return;
       }
-      if (newSW.state != "installed") {
-        return;
+
+      switch (newSW.state) {
+        case "activated":
+          goappOnUpdate();
       }
-      goappOnUpdate();
     });
   });
 }
 
-function goappSetupAutoUpdate(registration) {
-  const autoUpdateInterval = "0";
-  if (autoUpdateInterval == 0) {
+function goappTryUpdate() {
+  if (!goappServiceWorkerRegistration) {
     return;
   }
-
-  window.setInterval(() => {
-    registration.update();
-  }, autoUpdateInterval);
+  goappServiceWorkerRegistration.update();
 }
 
 // -----------------------------------------------------------------------------
@@ -85,12 +89,24 @@ function goappWatchForInstallable() {
 }
 
 function goappIsAppInstallable() {
-  return !goappIsAppInstalled() && deferredPrompt != null;
+  return !goappIsAppInstalled() && (deferredPrompt != null || goappIsAppleBrowser());
 }
 
 function goappIsAppInstalled() {
-  const isStandalone = window.matchMedia("(display-mode: standalone)").matches;
-  return isStandalone || navigator.standalone;
+  return navigator.standalone === true ||
+    window.matchMedia("(display-mode: standalone)").matches ||
+    document.referrer.startsWith('android-app://');
+}
+
+function goappIsAppleBrowser() {
+  const ua = navigator.userAgent;
+  const isIPadOS = /\bMacintosh\b/.test(ua) && navigator.maxTouchPoints > 1;
+  const isIOSFamily = /iP(hone|ad|od)/.test(ua) || isIPadOS;
+  const isMacSafari =
+    /\bMacintosh\b/.test(ua) &&
+    /\bSafari\b/.test(ua) &&
+    !/\bChrome\b|\bEdg\b|\bOPR\b|\bBrave\b/.test(ua);
+  return isIOSFamily || isMacSafari;
 }
 
 async function goappShowInstallPrompt() {
@@ -240,12 +256,14 @@ function goappCanLoadWebAssembly() {
 async function fetchWithProgress(url, progess) {
   const response = await fetch(url);
 
-  let contentLength;
-  try {
-    contentLength = response.headers.get(goappWasmContentLengthHeader);
-  } catch {}
-  if (!goappWasmContentLengthHeader || !contentLength) {
-    contentLength = response.headers.get("Content-Length");
+  let contentLength = goappWasmContentLength;
+  if (contentLength <= 0) {
+    try {
+      contentLength = response.headers.get(goappWasmContentLengthHeader);
+    } catch {}
+    if (!goappWasmContentLengthHeader || !contentLength) {
+      contentLength = response.headers.get("Content-Length");
+    }
   }
 
   const total = parseInt(contentLength, 10);

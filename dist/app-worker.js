@@ -1,44 +1,65 @@
-const cacheName = "app-" + "35ee8baaef6a4b6caf916d74bf1aba5486caff1a";
-const resourcesToCache = ["/","/app.css","/app.js","/manifest.webmanifest","/wasm_exec.js","/web/app.wasm","/web/icon.svg","https://cdn.jsdelivr.net/npm/halfmoon@1.1.1/css/halfmoon.min.css"];
+// -----------------------------------------------------------------------------
+// PWA
+// -----------------------------------------------------------------------------
+const cacheName = "app-" + "bcb5ef5f7c1d53814d5cb105289f8072c62f5de5";
+const resourcesToCache = ["https://cdn.jsdelivr.net/npm/halfmoon@1.1.1/css/halfmoon.min.css","/web/icon.svg","/web/app.wasm","/wasm_exec.js","/manifest.webmanifest","/app.js","/app.css","/"];
 
-self.addEventListener("install", (event) => {
-  console.log("installing app worker 35ee8baaef6a4b6caf916d74bf1aba5486caff1a");
-
-  event.waitUntil(
-    caches
-      .open(cacheName)
-      .then((cache) => {
-        return cache.addAll(resourcesToCache);
-      })
-      .then(() => {
-        self.skipWaiting();
-      })
-  );
+self.addEventListener("install", async (event) => {
+  try {
+    console.log("installing app worker bcb5ef5f7c1d53814d5cb105289f8072c62f5de5");
+    await installWorker();
+    await self.skipWaiting();
+  } catch (error) {
+    console.error("error during installation:", error);
+  }
 });
 
-self.addEventListener("activate", (event) => {
-  event.waitUntil(
-    caches.keys().then((keyList) => {
-      return Promise.all(
-        keyList.map((key) => {
-          if (key !== cacheName) {
-            return caches.delete(key);
-          }
-        })
-      );
+async function installWorker() {
+  const cache = await caches.open(cacheName);
+  await cache.addAll(resourcesToCache);
+}
+
+self.addEventListener("activate", async (event) => {
+  try {
+    await deletePreviousCaches(); // Await cache cleanup
+    await self.clients.claim(); // Ensure the service worker takes control of the clients
+    console.log("app worker bcb5ef5f7c1d53814d5cb105289f8072c62f5de5 is activated");
+  } catch (error) {
+    console.error("error during activation:", error);
+  }
+});
+
+async function deletePreviousCaches() {
+  const keys = await caches.keys();
+  await Promise.all(
+    keys.map(async (key) => {
+      if (key !== cacheName) {
+        try {
+          console.log("deleting", key, "cache");
+          await caches.delete(key);
+        } catch (err) {
+          console.error("deleting", key, "cache failed:", err);
+        }
+      }
     })
   );
-  console.log("app worker 35ee8baaef6a4b6caf916d74bf1aba5486caff1a is activated");
-});
+}
 
 self.addEventListener("fetch", (event) => {
-  event.respondWith(
-    caches.match(event.request).then((response) => {
-      return response || fetch(event.request);
-    })
-  );
+  event.respondWith(fetchWithCache(event.request));
 });
 
+async function fetchWithCache(request) {
+  const cachedResponse = await caches.match(request);
+  if (cachedResponse) {
+    return cachedResponse;
+  }
+  return await fetch(request);
+}
+
+// -----------------------------------------------------------------------------
+// Push Notifications
+// -----------------------------------------------------------------------------
 self.addEventListener("push", (event) => {
   if (!event.data || !event.data.text()) {
     return;
