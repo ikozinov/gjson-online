@@ -159,6 +159,9 @@ func main() {
 		if err := copyAssetsToDist(assetsDir); err != nil {
 			log.Fatal(err)
 		}
+		if err := fixWasmBundle(assetsDir); err != nil {
+			log.Fatal(err)
+		}
 		return
 	}
 
@@ -215,4 +218,17 @@ func copyAssetsToDist(assetsDir string) error {
 		_, err = io.Copy(dstFile, srcFile)
 		return err
 	})
+}
+
+// fixWasmBundle moves dist/app.wasm to dist/web/app.wasm
+func fixWasmBundle(assetsDir string) error {
+	src := filepath.Join("dist", "app.wasm")
+	dst := filepath.Join("dist", assetsDir, "app.wasm")
+
+	// Check if source exists before moving
+	if _, err := os.Stat(src); os.IsNotExist(err) {
+		return nil // Or handle as error if expected to exist
+	}
+
+	return os.Rename(src, dst)
 }
