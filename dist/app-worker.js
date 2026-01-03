@@ -1,8 +1,8 @@
-const cacheName = "app-" + "25ab0f18df16586c9f6d968574357af771193b82";
+const cacheName = "app-" + "5bdf1e3da8915dc40a0f09bca51889baf7da669f";
 const resourcesToCache = ["/","/app.css","/app.js","/manifest.webmanifest","/wasm_exec.js","/web/app.wasm","/web/icon.svg","https://cdn.jsdelivr.net/npm/halfmoon@1.1.1/css/halfmoon.min.css"];
 
 self.addEventListener("install", (event) => {
-  console.log("installing app worker 25ab0f18df16586c9f6d968574357af771193b82");
+  console.log("installing app worker 5bdf1e3da8915dc40a0f09bca51889baf7da669f");
 
   event.waitUntil(
     caches
@@ -28,7 +28,7 @@ self.addEventListener("activate", (event) => {
       );
     })
   );
-  console.log("app worker 25ab0f18df16586c9f6d968574357af771193b82 is activated");
+  console.log("app worker 5bdf1e3da8915dc40a0f09bca51889baf7da669f is activated");
 });
 
 self.addEventListener("fetch", (event) => {

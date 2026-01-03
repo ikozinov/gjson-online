@@ -3,11 +3,10 @@ package main
 import (
 	"log"
 	"net/http"
-	"fmt"
-	"io/ioutil"
 	"os"
+
+	"io"
 	"path/filepath"
-	"strings"
 
 	"github.com/maxence-charriere/go-app/v9/pkg/app"
 	"github.com/tidwall/gjson"
@@ -120,6 +119,8 @@ func (p *GJSONPlayground) Render() app.UI {
 	)
 }
 
+const assetsDir = "web"
+
 func main() {
 	app.Route("/", &GJSONPlayground{})
 
@@ -134,8 +135,8 @@ func main() {
 		},
 		Title: "GJSON Online",
 		Icon: app.Icon{
-			Default:    "/web/icon.svg", // Use the custom icon
-			AppleTouch: "/web/icon.svg", // Use it for Apple Touch too
+			Default:    "/" + assetsDir + "/icon.svg", // Use the custom icon
+			AppleTouch: "/" + assetsDir + "/icon.svg", // Use it for Apple Touch too
 		},
 		RawHeaders: []string{
 			`<script>
@@ -150,12 +151,12 @@ func main() {
 		},
 	}
 
-	// Check if the "gen" argument is provided to generate the static site
-	if len(os.Args) > 1 && os.Args[1] == "gen" {
+	// Check if the "dist" argument is provided to generate the static site
+	if len(os.Args) > 1 && os.Args[1] == "dist" {
 		if err := app.GenerateStaticWebsite("dist", handler); err != nil {
 			log.Fatal(err)
 		}
-		if err := fixPaths(); err != nil {
+		if err := copyAssetsToDist(assetsDir); err != nil {
 			log.Fatal(err)
 		}
 		return
@@ -174,38 +175,44 @@ func main() {
 	}
 }
 
-func fixPaths() error {
-	// Create dist/web directory
-	webDir := filepath.Join("dist", "web")
-	if err := os.MkdirAll(webDir, 0755); err != nil {
-		return fmt.Errorf("failed to create dist/web: %w", err)
-	}
+// copyAssetsToDist copies all files and directories from the specified assets directory
+// to the dist/web directory.
+func copyAssetsToDist(assetsDir string) error {
+	dstDir := filepath.Join("dist", assetsDir)
 
-	// Move icon.svg to dist/web/icon.svg if it exists in dist
-	iconSrc := filepath.Join("dist", "icon.svg")
-	iconDst := filepath.Join(webDir, "icon.svg")
-	if _, err := os.Stat(iconSrc); err == nil {
-		if err := os.Rename(iconSrc, iconDst); err != nil {
-			return fmt.Errorf("failed to move icon.svg: %w", err)
-		}
-	}
-
-	// Update app.js to point to /web/app.wasm
-	appJSPath := filepath.Join("dist", "app.js")
-	if _, err := os.Stat(appJSPath); err == nil {
-		content, err := ioutil.ReadFile(appJSPath)
+	return filepath.Walk(assetsDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
-			return fmt.Errorf("failed to read app.js: %w", err)
+			return err
 		}
-		newContent := strings.Replace(string(content), `"/app.wasm"`, `"/web/app.wasm"`, -1)
-		// go-app sometimes uses a variable or different structure, but usually it's fetch("/app.wasm")
-		// The provided web/app.js showed fetchWithProgress("/web/app.wasm", ...)
-		// If the generated one has "/app.wasm", we replace it.
 
-		if err := ioutil.WriteFile(appJSPath, []byte(newContent), 0644); err != nil {
-			return fmt.Errorf("failed to write app.js: %w", err)
+		// Calculate the destination path
+		relPath, err := filepath.Rel(assetsDir, path)
+		if err != nil {
+			return err
 		}
-	}
+		targetPath := filepath.Join(dstDir, relPath)
 
-	return nil
+		if info.IsDir() {
+			// Create directory in destination
+			return os.MkdirAll(targetPath, info.Mode())
+		}
+
+		// Open source file
+		srcFile, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		defer srcFile.Close()
+
+		// Create destination file with same permissions
+		dstFile, err := os.OpenFile(targetPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, info.Mode())
+		if err != nil {
+			return err
+		}
+		defer dstFile.Close()
+
+		// Copy content
+		_, err = io.Copy(dstFile, srcFile)
+		return err
+	})
 }
