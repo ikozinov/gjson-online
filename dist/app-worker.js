@@ -1,12 +1,12 @@
 // -----------------------------------------------------------------------------
 // PWA
 // -----------------------------------------------------------------------------
-const cacheName = "app-" + "d88a71887e4478a4db493e57c63e4230c3545e2f";
+const cacheName = "app-" + "a736e2c182d6a5cc3bbc7d32b3f1a9aa6d99545a";
 const resourcesToCache = ["https://cdn.jsdelivr.net/npm/halfmoon@1.1.1/css/halfmoon.min.css","/web/icon.svg","/web/app.wasm","/wasm_exec.js","/manifest.webmanifest","/app.js","/app.css","/"];
 
 self.addEventListener("install", async (event) => {
   try {
-    console.log("installing app worker d88a71887e4478a4db493e57c63e4230c3545e2f");
+    console.log("installing app worker a736e2c182d6a5cc3bbc7d32b3f1a9aa6d99545a");
     await installWorker();
     await self.skipWaiting();
   } catch (error) {
@@ -23,7 +23,7 @@ self.addEventListener("activate", async (event) => {
   try {
     await deletePreviousCaches(); // Await cache cleanup
     await self.clients.claim(); // Ensure the service worker takes control of the clients
-    console.log("app worker d88a71887e4478a4db493e57c63e4230c3545e2f is activated");
+    console.log("app worker a736e2c182d6a5cc3bbc7d32b3f1a9aa6d99545a is activated");
   } catch (error) {
     console.error("error during activation:", error);
   }

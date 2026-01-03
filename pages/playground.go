@@ -11,6 +11,8 @@ type GJSONPlayground struct {
 	JSONContent string
 	Query       string
 	Result      string
+	JSONError   string
+	PathFound   bool
 }
 
 // OnMount initializes the component with default data.
@@ -28,32 +30,57 @@ func (p *GJSONPlayground) OnMount(ctx app.Context) {
   ]
 }`
 	p.Query = "name.last"
-	p.updateResult()
+	p.updateResult(ctx)
 }
 
-func (p *GJSONPlayground) updateResult() {
-	if p.Query == "" {
+func (p *GJSONPlayground) updateResult(ctx app.Context) {
+	p.calculateResult()
+	// Trigger UI update
+	ctx.Update()
+}
+
+func (p *GJSONPlayground) calculateResult() {
+	if !gjson.Valid(p.JSONContent) {
+		p.JSONError = "Invalid JSON"
 		p.Result = ""
+		p.PathFound = false
 	} else {
-		res := gjson.Get(p.JSONContent, p.Query)
-		p.Result = res.String()
+		p.JSONError = "" // Clear error if valid
+		if p.Query == "" {
+			p.Result = ""
+			p.PathFound = true // Empty query is considered "found" in terms of no error
+		} else {
+			res := gjson.Get(p.JSONContent, p.Query)
+			if res.Exists() {
+				p.Result = res.String()
+				p.PathFound = true
+			} else {
+				p.Result = ""
+				p.PathFound = false
+			}
+		}
 	}
 }
 
 // OnJSONChange handles changes in the JSON input textarea.
 func (p *GJSONPlayground) OnJSONChange(ctx app.Context, e app.Event) {
 	p.JSONContent = ctx.JSSrc().Get("value").String()
-	p.updateResult()
+	p.updateResult(ctx)
 }
 
 // OnQueryChange handles changes in the GJSON path input.
 func (p *GJSONPlayground) OnQueryChange(ctx app.Context, e app.Event) {
 	p.Query = ctx.JSSrc().Get("value").String()
-	p.updateResult()
+	p.updateResult(ctx)
 }
 
 // Render describes the UI.
 func (p *GJSONPlayground) Render() app.UI {
+	textareaClass := "form-control"
+	if p.JSONError != "" {
+		textareaClass += " is-invalid"
+	}
+
 	return app.Div().Class("page-wrapper with-navbar").Body(
 		// Navbar
 		app.Nav().Class("navbar").Body(
@@ -88,12 +115,17 @@ func (p *GJSONPlayground) Render() app.UI {
 					app.Div().Class("col-md-6").Body(
 						app.Div().Class("p-20").Body(
 							app.Label().For("json-area").Text("JSON Input"),
-							app.Textarea().Class("form-control").ID("json-area").
+							app.Textarea().
+								Class(textareaClass).
+								ID("json-area").
 								Style("height", "70vh").
 								Style("font-family", "monospace").
 								// Value(p.JSONContent) was undefined
 								Body(app.Text(p.JSONContent)).
 								OnInput(p.OnJSONChange),
+							app.If(p.JSONError != "", func() app.UI {
+								return app.Div().Class("invalid-feedback").Text(p.JSONError)
+							}),
 						),
 					),
 					app.Div().Class("col-md-6").Body(
@@ -104,7 +136,10 @@ func (p *GJSONPlayground) Render() app.UI {
 								Style("font-family", "monospace").
 								Style("background-color", "#f0f0f0"). // Slight visual distinction
 								ReadOnly(true).
-								Text(p.Result),
+								Body(app.Text(p.Result)),
+							app.If(!p.PathFound && p.JSONError == "" && p.Query != "", func() app.UI {
+								return app.Div().Class("text-danger").Text("Value not found")
+							}),
 						),
 					),
 				),

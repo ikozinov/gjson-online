@@ -27,7 +27,7 @@ func TestUpdateResult(t *testing.T) {
 	comp.JSONContent = `{"key": "value"}`
 	comp.Query = "key"
 
-	comp.updateResult()
+	comp.calculateResult()
 
 	if comp.Result != "value" {
 		t.Errorf("Expected 'value', got '%s'", comp.Result)
@@ -40,9 +40,25 @@ func TestEmptyQuery(t *testing.T) {
 	comp.JSONContent = `{"key": "value"}`
 	comp.Query = ""
 
-	comp.updateResult()
+	comp.calculateResult()
 
 	if comp.Result != "" {
 		t.Errorf("Expected empty string, got '%s'", comp.Result)
+	}
+}
+
+// Test Invalid Path (Result not found)
+func TestInvalidPath(t *testing.T) {
+	comp := &GJSONPlayground{}
+	comp.JSONContent = `{"key": "value"}`
+	comp.Query = "non.existent.path"
+
+	comp.calculateResult()
+
+	if comp.Result != "" {
+		t.Errorf("Expected empty string for non-existent path, got '%s'", comp.Result)
+	}
+	if comp.PathFound {
+		t.Errorf("Expected PathFound to be false")
 	}
 }
